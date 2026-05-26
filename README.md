@@ -84,6 +84,14 @@ agent-collab status
 agent-collab doctor
 ```
 
+Optionally install a pre-commit hook:
+
+```bash
+agent-collab install-hooks
+```
+
+The hook runs `agent-collab check-staged` before each commit. It blocks the commit when staged files are not listed in any active intent, or when staged files are claimed by multiple active intents. Bypass with `git commit --no-verify` when the overlap is intentional.
+
 Archive completed work:
 
 ```bash
@@ -145,6 +153,8 @@ agent-collab done .agent-collab/active/<intent-id>
 | `agent-collab start` | Create an active intent directory with `intent.json` and `plan.md`. |
 | `agent-collab status` | List active intents, stale work, and potential overlaps. |
 | `agent-collab doctor` | Validate setup, JSON intent files, git state, and stale intents. |
+| `agent-collab install-hooks` | Install an optional pre-commit hook for staged-file intent coverage checks. |
+| `agent-collab check-staged` | Check staged files against active intents; used by the pre-commit hook. |
 | `agent-collab done` | Move completed work from `active/` to `archive/`. |
 
 ## Repo layout

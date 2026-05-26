@@ -1,19 +1,31 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { promisify } from "node:util";
 
 import {
+  checkStagedIntentCoverage,
   doctorProject,
   doneIntent,
   getStatus,
   initProject,
+  installGitHooks,
   startIntent
 } from "../src/core.ts";
 
+const execFileAsync = promisify(execFile);
+
 async function tempRepo(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "agent-collab-test-"));
+}
+
+async function tempGitRepo(): Promise<string> {
+  const root = await tempRepo();
+  await execFileAsync("git", ["init"], { cwd: root });
+  return root;
 }
 
 test("initProject creates AGENTS.md, protocol, active, and archive", async () => {
@@ -137,4 +149,73 @@ test("doneIntent moves completed intent directory to archive", async () => {
 
   await stat(path.join(archived.path, "intent.json"));
   assert.match(archived.path, /\.agent-collab\/archive\/2026-05-26T143000Z-codex-archive-me$/);
+});
+
+test("installGitHooks writes a managed pre-commit hook", async () => {
+  const root = await tempGitRepo();
+
+  const result = await installGitHooks(root);
+
+  const hook = await readFile(path.join(root, ".git", "hooks", "pre-commit"), "utf8");
+  assert.equal(result.installed, true);
+  assert.match(hook, /agent-collab:start/);
+  assert.match(hook, /agent-collab check-staged/);
+});
+
+test("checkStagedIntentCoverage reports staged files without active intents", async () => {
+  const root = await tempGitRepo();
+  await initProject(root);
+  await writeFile(path.join(root, "src.ts"), "export const value = 1;\n", "utf8");
+  await execFileAsync("git", ["add", "src.ts"], { cwd: root });
+
+  const report = await checkStagedIntentCoverage(root);
+
+  assert.equal(report.ok, false);
+  assert.deepEqual(report.uncoveredFiles, ["src.ts"]);
+});
+
+test("checkStagedIntentCoverage passes when staged files are covered by one active intent", async () => {
+  const root = await tempGitRepo();
+  await initProject(root);
+  await startIntent(root, {
+    agent: "codex",
+    title: "Cover staged file",
+    files: ["src.ts"],
+    areas: ["hook"],
+    now: new Date("2026-05-26T14:30:00Z")
+  });
+  await writeFile(path.join(root, "src.ts"), "export const value = 1;\n", "utf8");
+  await execFileAsync("git", ["add", "src.ts"], { cwd: root });
+
+  const report = await checkStagedIntentCoverage(root);
+
+  assert.equal(report.ok, true);
+  assert.deepEqual(report.uncoveredFiles, []);
+  assert.deepEqual(report.overlappingFiles, []);
+});
+
+test("checkStagedIntentCoverage reports staged files claimed by multiple intents", async () => {
+  const root = await tempGitRepo();
+  await initProject(root);
+  await startIntent(root, {
+    agent: "agent-a",
+    title: "First claim",
+    files: ["src.ts"],
+    areas: ["hook"],
+    now: new Date("2026-05-26T14:30:00Z")
+  });
+  await startIntent(root, {
+    agent: "agent-b",
+    title: "Second claim",
+    files: ["src.ts"],
+    areas: ["hook"],
+    now: new Date("2026-05-26T15:30:00Z")
+  });
+  await writeFile(path.join(root, "src.ts"), "export const value = 1;\n", "utf8");
+  await execFileAsync("git", ["add", "src.ts"], { cwd: root });
+
+  const report = await checkStagedIntentCoverage(root);
+
+  assert.equal(report.ok, false);
+  assert.deepEqual(report.overlappingFiles, ["src.ts"]);
 });

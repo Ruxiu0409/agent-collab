@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
 import {
+  checkStagedIntentCoverage,
   doctorProject,
   doneIntent,
   getStatus,
   initProject,
+  installGitHooks,
   startIntent
 } from "./core.ts";
 
@@ -94,6 +96,37 @@ async function main(argv: string[]): Promise<number> {
       for (const warning of result.warnings) console.log(`Warning: ${warning}`);
       return 0;
     }
+    case "install-hooks": {
+      const result = await installGitHooks(root);
+      console.log(`Installed agent-collab pre-commit hook: ${relative(result.path)}`);
+      return 0;
+    }
+    case "check-staged": {
+      const report = await checkStagedIntentCoverage(root);
+      if (report.stagedFiles.length === 0) {
+        console.log("agent-collab check-staged: no staged files");
+        return 0;
+      }
+      if (report.ok) {
+        console.log("agent-collab check-staged: ok");
+        return 0;
+      }
+      console.log("agent-collab check-staged: intent coverage failed");
+      if (report.problems.length > 0) {
+        console.log("Problems:");
+        for (const problem of report.problems) console.log(`- ${problem}`);
+      }
+      if (report.uncoveredFiles.length > 0) {
+        console.log("Staged files without an active intent:");
+        for (const file of report.uncoveredFiles) console.log(`- ${file}`);
+      }
+      if (report.overlappingFiles.length > 0) {
+        console.log("Staged files claimed by multiple active intents:");
+        for (const file of report.overlappingFiles) console.log(`- ${file}`);
+      }
+      console.log("Create or update an agent-collab intent before committing, or bypass with git commit --no-verify when intentional.");
+      return 1;
+    }
     case "--help":
     case "-h":
     case undefined:
@@ -162,6 +195,8 @@ Usage:
   agent-collab start --agent codex --title "Login validation" --files src/a.ts,src/b.ts --areas auth,login
   agent-collab status
   agent-collab doctor
+  agent-collab install-hooks
+  agent-collab check-staged
   agent-collab done .agent-collab/active/<intent-id>
 `);
 }

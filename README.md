@@ -1,48 +1,43 @@
+![agent-collab cover](./assets/agent-collab-cover.svg)
+
 # agent-collab
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-111827.svg)](./LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.6-339933.svg)](https://nodejs.org)
+[![Status](https://img.shields.io/badge/status-MVP-0F766E.svg)](https://github.com/Ruxiu0409/agent-collab)
 
 A tiny AGENTS.md companion that makes coding agents declare intent before editing shared code.
 
-`agent-collab` installs a document-first preflight protocol for repositories where multiple AI coding agents may work at the same time. It does not fully prevent conflicts or replace Git. It reduces stale-agent overwrites by making planned edits visible before code changes begin.
+Stop Codex, Claude Code, Cursor, Gemini CLI, and other coding agents from silently working from stale context. `agent-collab` installs a document-first preflight protocol into your repository: every agent writes what it plans to touch before it edits code.
 
-## Why
-
-Two agents can read the same old file, then one agent edits it while the other later writes from stale context. Git can show the damage afterward, but it does not make agents declare intent before editing.
-
-`agent-collab` adds a small coordination layer:
-
-- `AGENTS.md` tells agents to follow the preflight protocol.
-- `.agent-collab/protocol.md` explains the workflow.
-- `.agent-collab/active/<intent-id>/intent.json` stores machine-readable metadata.
-- `.agent-collab/active/<intent-id>/plan.md` stores the human-readable plan.
-
-## Install
-
-Use it directly with npm:
+It does not replace Git, lock files, or fully prevent conflicts. It makes planned edits visible early so overlapping work can be surfaced before damage happens.
 
 ```bash
 npx agent-collab init
 ```
 
-For local development in this repository:
+## Why agent-collab
 
-```bash
-npm test
-node src/cli.ts --help
-```
+Multiple coding agents can be useful, until they start editing the same project from different memories of the codebase.
 
-## Commands
+The classic failure:
 
-```bash
-agent-collab init
-agent-collab start --agent codex --title "Login validation" --files src/login.ts,test/login.test.ts --areas auth,login
-agent-collab status
-agent-collab doctor
-agent-collab done .agent-collab/active/<intent-id>
-```
+1. Agent A reads `src/auth.ts`.
+2. Agent B reads the same old version.
+3. Agent A updates the file.
+4. Agent B writes from stale context and accidentally undoes part of A's change.
 
-## Intent Format
+Git shows the mess afterward. `agent-collab` adds a preflight step before code edits begin.
 
-Each active intent is a directory:
+## Highlights
+
+### Document-first preflight
+
+Agents must read the protocol, inspect active work, check `git status --short`, re-read planned files, and create an intent before editing code.
+
+### JSON metadata, Markdown plans
+
+Every active intent is a small directory:
 
 ```txt
 .agent-collab/active/<intent-id>/
@@ -50,7 +45,71 @@ Each active intent is a directory:
   plan.md
 ```
 
-`intent.json` is the CLI's source of truth:
+`intent.json` is stable for the CLI. `plan.md` is where agents write the detailed plan, verification notes, and handoff context.
+
+### Potential conflict detection
+
+`agent-collab status` compares planned files and affected areas across active intents. When work overlaps, it reports a potential conflict and tells the agent to stop and ask the user before editing.
+
+### Stale intent warnings
+
+Each intent has `updated` and `expires` timestamps. `status` and `doctor` surface stale or expired work so old coordination files do not quietly become noise.
+
+### AGENTS.md native
+
+`agent-collab init` writes a managed section into `AGENTS.md`, the cross-tool instruction surface many coding agents already read.
+
+## Get started
+
+```bash
+npx agent-collab init
+```
+
+Create an intent before editing:
+
+```bash
+agent-collab start \
+  --agent codex \
+  --title "Login validation" \
+  --files src/login.ts,test/login.test.ts \
+  --areas auth,login
+```
+
+Check current work:
+
+```bash
+agent-collab status
+agent-collab doctor
+```
+
+Archive completed work:
+
+```bash
+agent-collab done .agent-collab/active/<intent-id>
+```
+
+## Workflow
+
+```txt
+agent-collab init
+        |
+        v
+Agent reads AGENTS.md + .agent-collab/protocol.md
+        |
+        v
+Agent checks active intents + git status
+        |
+        v
+agent-collab start --files ... --areas ...
+        |
+        v
+Edit code, verify, update handoff notes
+        |
+        v
+agent-collab done .agent-collab/active/<intent-id>
+```
+
+## Example intent
 
 ```json
 {
@@ -61,8 +120,13 @@ Each active intent is a directory:
   "started": "2026-05-26T06:30:00.000Z",
   "updated": "2026-05-26T06:30:00.000Z",
   "expires": "2026-05-26T10:30:00.000Z",
-  "filesPlanned": ["src/login.ts"],
+  "filesPlanned": ["src/login.ts", "test/login.test.ts"],
   "areasAffected": ["auth", "login"],
+  "conflictCheck": {
+    "checkedAt": "2026-05-26T06:30:00.000Z",
+    "result": "no-conflict",
+    "notes": "No active work touches the same files or affected areas."
+  },
   "completion": {
     "changedFiles": [],
     "verificationRun": [],
@@ -71,11 +135,41 @@ Each active intent is a directory:
 }
 ```
 
-`plan.md` is where agents write detailed implementation steps, verification notes, and handoff context.
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `agent-collab init` | Install `AGENTS.md` guidance and `.agent-collab/` protocol files. |
+| `agent-collab start` | Create an active intent directory with `intent.json` and `plan.md`. |
+| `agent-collab status` | List active intents, stale work, and potential overlaps. |
+| `agent-collab doctor` | Validate setup, JSON intent files, git state, and stale intents. |
+| `agent-collab done` | Move completed work from `active/` to `archive/`. |
+
+## Repo layout
+
+| Path | Description |
+| --- | --- |
+| `src/core.ts` | Core protocol logic for init, start, status, doctor, and done. |
+| `src/cli.ts` | Zero-dependency Node CLI entrypoint. |
+| `test/core.test.ts` | Node built-in test coverage for the MVP behavior. |
+| `docs/superpowers/specs/` | Design notes and product decisions. |
+| `docs/superpowers/plans/` | Implementation plan used to build the MVP. |
+
+## Development
+
+```bash
+npm test
+npm run check
+node src/cli.ts --help
+```
+
+This project currently uses Node's built-in TypeScript type stripping and built-in test runner, so the MVP has no runtime dependencies.
 
 ## Positioning
 
-This is not a task board and not an orchestration runtime. It is a coding-agent preflight protocol that can live beside tools such as AGENTS.md, Git worktrees, and task trackers.
+`agent-collab` is not a task board, project manager, background daemon, or agent orchestration runtime.
+
+It is a coding-agent preflight protocol: small enough to keep in Git, explicit enough for humans to review, and structured enough for a CLI to warn when agents are about to step on each other's work.
 
 ## License
 

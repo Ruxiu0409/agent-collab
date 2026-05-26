@@ -1,0 +1,73 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">agent-collab cover</title>
+  <desc id="desc">A visual diagram of coding agents declaring intent before editing shared code.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="640" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0B1020"/>
+      <stop offset="0.54" stop-color="#172033"/>
+      <stop offset="1" stop-color="#0F2E2B"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="285" y1="153" x2="1004" y2="504" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7DD3FC"/>
+      <stop offset="0.48" stop-color="#A7F3D0"/>
+      <stop offset="1" stop-color="#FDE68A"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="22" stdDeviation="22" flood-color="#020617" flood-opacity="0.36"/>
+    </filter>
+    <style>
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+      .sans { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="640" rx="44" fill="url(#bg)"/>
+  <path d="M110 472C231 390 332 394 466 432C635 480 767 514 927 432C1037 375 1115 384 1194 426" stroke="#94A3B8" stroke-opacity="0.18" stroke-width="2"/>
+  <path d="M85 169C213 221 319 204 431 155C583 88 704 82 871 156C1014 219 1125 210 1212 158" stroke="#94A3B8" stroke-opacity="0.12" stroke-width="2"/>
+
+  <g transform="translate(92 96)">
+    <text class="mono" x="0" y="0" fill="#A7F3D0" font-size="22" font-weight="700">agent-collab</text>
+    <text class="sans" x="0" y="72" fill="#F8FAFC" font-size="64" font-weight="800" letter-spacing="0">Declare intent</text>
+    <text class="sans" x="0" y="144" fill="#F8FAFC" font-size="64" font-weight="800" letter-spacing="0">before editing code.</text>
+    <text class="sans" x="0" y="203" fill="#CBD5E1" font-size="25" font-weight="500">A document-first preflight protocol for multiple</text>
+    <text class="sans" x="0" y="239" fill="#CBD5E1" font-size="25" font-weight="500">AI coding agents working in one repository.</text>
+
+    <g transform="translate(0 305)">
+      <rect x="0" y="0" width="292" height="54" rx="14" fill="#F8FAFC"/>
+      <text class="mono" x="24" y="35" fill="#0F172A" font-size="19" font-weight="800">npx agent-collab init</text>
+    </g>
+    <g transform="translate(316 305)">
+      <rect x="0" y="0" width="286" height="54" rx="14" fill="#0F172A" stroke="#334155"/>
+      <text class="mono" x="24" y="35" fill="#BAE6FD" font-size="19" font-weight="700">status / doctor / done</text>
+    </g>
+  </g>
+
+  <g transform="translate(716 104)" filter="url(#softShadow)">
+    <rect x="0" y="0" width="452" height="418" rx="28" fill="#F8FAFC"/>
+    <rect x="26" y="26" width="400" height="366" rx="19" fill="#0F172A"/>
+
+    <g transform="translate(50 56)">
+      <circle cx="12" cy="12" r="7" fill="#F87171"/>
+      <circle cx="36" cy="12" r="7" fill="#FBBF24"/>
+      <circle cx="60" cy="12" r="7" fill="#34D399"/>
+      <text class="mono" x="0" y="64" fill="#A7F3D0" font-size="18" font-weight="800">.agent-collab/active</text>
+    </g>
+
+    <g transform="translate(52 154)">
+      <rect x="0" y="0" width="348" height="72" rx="14" fill="#1E293B" stroke="#334155"/>
+      <text class="mono" x="20" y="29" fill="#93C5FD" font-size="15" font-weight="700">codex-login/intent.json</text>
+      <text class="mono" x="20" y="53" fill="#E2E8F0" font-size="14">files: ["src/auth.ts"]</text>
+    </g>
+
+    <g transform="translate(52 244)">
+      <rect x="0" y="0" width="348" height="72" rx="14" fill="#1E293B" stroke="#334155"/>
+      <text class="mono" x="20" y="29" fill="#86EFAC" font-size="15" font-weight="700">claude-settings/plan.md</text>
+      <text class="mono" x="20" y="53" fill="#E2E8F0" font-size="14">plan before code edits</text>
+    </g>
+
+    <g transform="translate(52 332)">
+      <path d="M0 0H348" stroke="url(#accent)" stroke-width="3" stroke-linecap="round"/>
+      <text class="mono" x="0" y="34" fill="#FDE68A" font-size="16" font-weight="800">potential overlap surfaced first</text>
+    </g>
+  </g>
+</svg>

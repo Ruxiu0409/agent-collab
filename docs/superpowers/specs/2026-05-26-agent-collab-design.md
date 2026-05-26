@@ -4,7 +4,9 @@
 
 `agent-collab` is a TypeScript/Node CLI that installs a document-first coordination protocol for multiple AI coding agents working in the same Git repository.
 
-The project does not try to replace Git, AGENTS.md, or full multi-agent orchestration platforms. Instead, it adds a lightweight preflight layer: before an agent edits code, it must declare its intent in a project-local Markdown file, check active work from other agents, and stop if its planned files or affected areas conflict.
+The project does not try to replace Git, AGENTS.md, TICK.md, or full multi-agent orchestration platforms. Instead, it adds a lightweight preflight layer: before an agent edits code, it must declare its intent in a project-local Markdown file, check active work from other agents, and stop if its planned files or affected areas conflict.
+
+The product promise should be intentionally honest: `agent-collab` cannot guarantee that an agent will obey Markdown instructions, but it can make intended edits visible before code changes begin and reduce stale-agent overwrites.
 
 ## Problem
 
@@ -28,17 +30,25 @@ It is intentionally narrower than a task manager or orchestration framework:
 - Active work is represented as small Markdown intent files.
 - The CLI helps create, inspect, validate, and archive those intent files.
 
+The primary positioning line for README and package metadata should be:
+
+> A tiny AGENTS.md companion that makes coding agents declare intent before editing shared code.
+
+This avoids competing directly with task-board protocols such as TICK.md. TICK.md coordinates tasks; `agent-collab` coordinates coding-agent preflight checks around planned edits, affected code areas, stale context, and handoff notes.
+
 ## Goals
 
 - Make multi-agent coding safer without requiring a server, database, or editor plugin.
 - Require every agent to document its plan before editing code.
 - Make potential conflicts visible before code changes begin.
+- Reduce stale-agent overwrites by requiring explicit intent before edits.
 - Work across Codex, Claude Code, Cursor, Gemini CLI, Copilot, and other tools that can read Markdown.
 - Keep the workflow understandable for humans reviewing a repository.
 
 ## Non-Goals
 
 - No hard filesystem locking in the MVP.
+- No claim that conflicts can be fully prevented.
 - No automatic conflict resolution in the MVP.
 - No full task board or project management system.
 - No model-specific orchestration runtime.
@@ -71,7 +81,9 @@ Before editing code, every agent must:
 7. If a conflict exists, stop and report it to the user.
 8. If no conflict exists, create a new active intent file.
 9. Only after the intent file exists may the agent edit code.
-10. Before finishing, update the intent file with changed files, verification, and handoff notes.
+10. Refresh the intent file while working if the plan changes.
+11. Before finishing, update the intent file with changed files, verification, and handoff notes.
+12. Run `agent-collab done` or manually move the completed intent to `.agent-collab/archive/`.
 
 ## Active Intent File
 
@@ -91,6 +103,8 @@ Example content:
 Status: active
 Agent: codex
 Started: 2026-05-26T14:30:00+08:00
+Updated: 2026-05-26T14:30:00+08:00
+Expires: 2026-05-26T18:30:00+08:00
 
 ## Goal
 
@@ -169,6 +183,7 @@ Reads all active intent files and prints:
 - agents
 - planned files
 - affected areas
+- age and stale state
 - likely overlaps
 
 ### `agent-collab doctor`
@@ -181,6 +196,8 @@ Checks whether the repository is configured correctly:
 - AGENTS.md contains the managed preflight section.
 - Git repository is present.
 - Uncommitted changes are visible.
+- Active intents older than the stale threshold are reported.
+- Expired intents are reported separately from merely stale intents.
 
 ### `agent-collab done`
 
@@ -193,6 +210,34 @@ agent-collab done .agent-collab/active/2026-05-26T1430-codex-login-validation.md
 ```
 
 It moves the file to `.agent-collab/archive/` after confirming the completion section is filled.
+
+## Intent Lifecycle
+
+Active intent files are useful only while they represent current work. The MVP should treat stale active files as a first-class problem.
+
+Default lifecycle:
+
+- `active`: current work, updated recently.
+- `stale`: active work with no update for more than 4 hours.
+- `expired`: active work whose `Expires` timestamp has passed.
+- `completed`: work finished and ready to archive.
+- `archived`: completed work moved to `.agent-collab/archive/`.
+
+`agent-collab status` should always show stale and expired intents with visible warnings:
+
+```txt
+Stale intent:
+- .agent-collab/active/2026-05-26T1430-codex-login-validation.md
+  Agent: codex
+  Last updated: 5h 12m ago
+  Planned files: Sources/Auth/LoginView.swift
+
+Ask the user whether this work is still active before editing overlapping files.
+```
+
+`agent-collab doctor` should warn when active intents are stale. The first release should not fail, delete, or archive automatically.
+
+The protocol should require every agent to refresh `Updated` when its plan changes or when it resumes a paused task. This keeps stale detection cheap and understandable.
 
 ## Conflict Detection
 
@@ -209,7 +254,7 @@ Example output:
 
 ```txt
 Potential conflict:
-- Your planned file Sources/Auth/LoginView.swift is already claimed by:
+- Your planned file Sources/Auth/LoginView.swift is already listed by:
   .agent-collab/active/2026-05-26T1430-codex-login-validation.md
 
 Stop and ask the user before editing.
@@ -233,7 +278,58 @@ The CLI must never rewrite unrelated AGENTS.md content.
 
 ### Agent Compliance
 
-Agents may ignore the protocol. The mitigation is to put concise, repeated instructions in AGENTS.md and make `agent-collab doctor` detect missing or stale instructions.
+Agents may ignore the protocol because Markdown instructions are not hard enforcement.
+
+Solution:
+
+- Make the README and AGENTS.md copy honest: the tool reduces stale-agent overwrites but does not guarantee prevention.
+- Put the preflight rule in a short managed AGENTS.md section with imperative language: read active intents, create intent before editing, stop on overlap.
+- Make `agent-collab doctor` detect missing, edited, or stale managed instructions.
+- Make `agent-collab status` return copy-pastable warnings that agents can surface to users when work overlaps.
+- Add an optional future `agent-collab guard` command only after the Markdown protocol proves useful; do not include hard enforcement in the MVP.
+
+Acceptance criteria:
+
+- The generated AGENTS.md section tells agents they must not edit code before creating an active intent.
+- The README says "reduce" or "surface" conflicts, not "prevent" conflicts.
+- `doctor` reports a missing managed AGENTS.md section.
+
+### Positioning Overlap With TICK.md
+
+The project may look like another Markdown task manager.
+
+Solution:
+
+- Position `agent-collab` as a coding-agent preflight protocol, not a task board.
+- Keep the MVP focused on planned files, affected areas, stale context, verification, and handoff notes.
+- Avoid backlog, priority queues, dependencies, assignment workflows, dashboards, and hosted sync in the MVP.
+- Explicitly state that it can be used alongside task tools: a TICK.md task can link to an `agent-collab` intent, but `agent-collab` does not own the task lifecycle.
+
+Acceptance criteria:
+
+- README first screen uses the phrase "declare intent before editing shared code."
+- The design and generated docs avoid task-board language such as backlog, sprint, priority, and assignee.
+- CLI commands remain `init`, `start`, `status`, `doctor`, and `done`; no `next`, `claim`, or `assign` in the MVP.
+
+### Stale Active Intents
+
+Agents may forget to archive completed work, causing `.agent-collab/active/` to become noisy and untrusted.
+
+Solution:
+
+- Add `Updated` and `Expires` fields to every active intent.
+- Treat intents as stale after 4 hours without an update.
+- Treat intents as expired after the `Expires` timestamp.
+- Make `status` and `doctor` highlight stale and expired intents.
+- Require `done` to archive completed intents.
+- Never auto-delete active intents in the MVP; stale work should require human or agent confirmation.
+
+Acceptance criteria:
+
+- `agent-collab start` writes `Started`, `Updated`, and `Expires`.
+- `agent-collab status` labels stale and expired active intents.
+- `agent-collab doctor` warns when stale or expired active intents exist.
+- `agent-collab done` moves completed intents to `.agent-collab/archive/`.
 
 ### Coordination File Conflicts
 
@@ -255,6 +351,9 @@ The MVP is successful when:
 - A coding agent reading AGENTS.md understands that it must create an intent before editing.
 - Two active intent files with overlapping paths are reported by `agent-collab status`.
 - `agent-collab doctor` catches missing protocol files and missing managed AGENTS.md instructions.
+- README and generated docs describe the tool as reducing or surfacing conflicts, not fully preventing them.
+- Generated docs position the tool as a coding-agent preflight protocol, not a task board.
+- Stale and expired active intents are visible in `status` and `doctor`.
 - The workflow remains plain Markdown and Git-friendly.
 
 ## Recommended MVP Decisions

@@ -85,6 +85,14 @@ agent-collab status
 agent-collab doctor
 ```
 
+選擇性安裝 pre-commit hook：
+
+```bash
+agent-collab install-hooks
+```
+
+這個 hook 會在每次 commit 前執行 `agent-collab check-staged`。如果 staged files 沒有出現在任何 active intent 裡，或同一個 staged file 被多個 active intents 宣告，它會擋下 commit。若這次重疊是刻意的，可以用 `git commit --no-verify` 透過 Git 標準方式略過。
+
 完成後封存 intent：
 
 ```bash
@@ -146,6 +154,8 @@ agent-collab done .agent-collab/active/<intent-id>
 | `agent-collab start` | 建立包含 `intent.json` 和 `plan.md` 的 active intent directory。 |
 | `agent-collab status` | 列出 active intents、stale work 和 potential overlaps。 |
 | `agent-collab doctor` | 檢查 setup、JSON intent files、git state 和 stale intents。 |
+| `agent-collab install-hooks` | 安裝選擇性的 pre-commit hook，檢查 staged files 是否有 intent 覆蓋。 |
+| `agent-collab check-staged` | 將 staged files 與 active intents 比對；供 pre-commit hook 使用。 |
 | `agent-collab done` | 將完成的工作從 `active/` 移到 `archive/`。 |
 
 ## Repo 結構

@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import {
+  chmod,
   mkdir,
   readFile,
   readdir,
@@ -66,6 +67,19 @@ export type DoctorReport = {
   ok: boolean;
   problems: string[];
   warnings: string[];
+};
+
+export type GitHooksInstallReport = {
+  path: string;
+  installed: boolean;
+};
+
+export type StagedIntentCoverageReport = {
+  ok: boolean;
+  stagedFiles: string[];
+  uncoveredFiles: string[];
+  overlappingFiles: string[];
+  problems: string[];
 };
 
 export async function initProject(root: string): Promise<{ root: string }> {
@@ -207,6 +221,71 @@ export async function doneIntent(
   return { path: destination, warnings };
 }
 
+export async function installGitHooks(root: string): Promise<GitHooksInstallReport> {
+  const hookPath = await resolveGitHookPath(root, "pre-commit");
+  await mkdir(path.dirname(hookPath), { recursive: true });
+
+  const section = formatPreCommitHookSection();
+  let existing = "";
+  let hadExistingHook = true;
+  try {
+    existing = await readFile(hookPath, "utf8");
+  } catch {
+    hadExistingHook = false;
+  }
+
+  const start = "# agent-collab:start";
+  const end = "# agent-collab:end";
+  const startIndex = existing.indexOf(start);
+  const endIndex = existing.indexOf(end);
+  let next: string;
+
+  if (!hadExistingHook) {
+    next = `#!/bin/sh\n\n${section}\n`;
+  } else if (startIndex >= 0 && endIndex > startIndex) {
+    const before = existing.slice(0, startIndex).trimEnd();
+    const after = existing.slice(endIndex + end.length).trimStart();
+    next = `${before}\n\n${section}\n${after ? `\n${after}` : ""}`;
+  } else {
+    const prefix = existing.startsWith("#!") ? existing.trimEnd() : `#!/bin/sh\n\n${existing.trimEnd()}`;
+    next = `${prefix}\n\n${section}\n`;
+  }
+
+  await writeFile(hookPath, next, "utf8");
+  await chmod(hookPath, 0o755);
+  return { path: hookPath, installed: true };
+}
+
+export async function checkStagedIntentCoverage(
+  root: string,
+  now = new Date()
+): Promise<StagedIntentCoverageReport> {
+  const stagedFiles = await readStagedFiles(root);
+  const status = await getStatus(root, now);
+  const uncoveredFiles: string[] = [];
+  const overlappingFiles: string[] = [];
+
+  for (const file of stagedFiles) {
+    const coveringIntents = status.intents.filter((intent) => intent.filesPlanned.includes(file));
+    if (coveringIntents.length === 0) {
+      uncoveredFiles.push(file);
+    } else if (coveringIntents.length > 1) {
+      overlappingFiles.push(file);
+    }
+  }
+
+  return {
+    ok:
+      status.problems.length === 0 &&
+      uncoveredFiles.length === 0 &&
+      overlappingFiles.length === 0,
+    stagedFiles,
+    uncoveredFiles,
+    overlappingFiles,
+    problems: status.problems
+  };
+}
+
 function collabPath(root: string): string {
   return path.join(root, ".agent-collab");
 }
@@ -251,6 +330,16 @@ Before editing code:
 6. Create your own active intent with agent-collab start before editing code.
 7. Update your intent while working and archive it with agent-collab done when complete.
 <!-- agent-collab:end -->`;
+}
+
+function formatPreCommitHookSection(): string {
+  return `# agent-collab:start
+if command -v agent-collab >/dev/null 2>&1; then
+  agent-collab check-staged || exit $?
+else
+  echo "agent-collab: command not found; skipping intent coverage check."
+fi
+# agent-collab:end`;
 }
 
 async function upsertAgentsFile(root: string): Promise<void> {
@@ -359,6 +448,26 @@ async function readActiveIntents(
 async function readIntentDirectory(intentDir: string): Promise<{ intent: IntentJson }> {
   const raw = await readFile(path.join(intentDir, "intent.json"), "utf8");
   return { intent: JSON.parse(raw) as IntentJson };
+}
+
+async function readStagedFiles(root: string): Promise<string[]> {
+  const { stdout } = await execFileAsync(
+    "git",
+    ["diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+    { cwd: root }
+  );
+  return stdout
+    .split("\n")
+    .map((file) => file.trim())
+    .filter(Boolean);
+}
+
+async function resolveGitHookPath(root: string, hookName: string): Promise<string> {
+  const { stdout } = await execFileAsync("git", ["rev-parse", "--git-path", `hooks/${hookName}`], {
+    cwd: root
+  });
+  const resolved = stdout.trim();
+  return path.isAbsolute(resolved) ? resolved : path.join(root, resolved);
 }
 
 function validateIntent(intent: IntentJson): string[] {

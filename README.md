@@ -154,8 +154,6 @@ agent-collab done .agent-collab/active/<intent-id>
 | `src/core.ts` | Core protocol logic for init, start, status, doctor, and done. |
 | `src/cli.ts` | Zero-dependency Node CLI entrypoint. |
 | `test/core.test.ts` | Node built-in test coverage for the MVP behavior. |
-| `docs/superpowers/specs/` | Design notes and product decisions. |
-| `docs/superpowers/plans/` | Implementation plan used to build the MVP. |
 
 ## Development
 

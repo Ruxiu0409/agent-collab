@@ -154,8 +154,6 @@ agent-collab done .agent-collab/active/<intent-id>
 | `src/core.ts` | `init`、`start`、`status`、`doctor`、`done` 的核心 protocol logic。 |
 | `src/cli.ts` | 零外部依賴的 Node CLI entrypoint。 |
 | `test/core.test.ts` | 使用 Node built-in test runner 的 MVP 行為測試。 |
-| `docs/superpowers/specs/` | 設計筆記與產品決策。 |
-| `docs/superpowers/plans/` | 建立 MVP 時使用的 implementation plan。 |
 
 ## 開發
 

@@ -5,6 +5,7 @@
 [English](./README.md) · [繁體中文](./README.zh-TW.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-111827.svg)](./LICENSE)
+[![CI](https://github.com/Ruxiu0409/agent-collab/actions/workflows/ci.yml/badge.svg)](https://github.com/Ruxiu0409/agent-collab/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.6-339933.svg)](https://nodejs.org)
 [![Status](https://img.shields.io/badge/status-MVP-0F766E.svg)](https://github.com/Ruxiu0409/agent-collab)
 

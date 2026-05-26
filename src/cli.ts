@@ -1,0 +1,176 @@
+#!/usr/bin/env node
+
+import {
+  doctorProject,
+  doneIntent,
+  getStatus,
+  initProject,
+  startIntent
+} from "./core.ts";
+
+type ParsedArgs = {
+  command?: string;
+  flags: Record<string, string | boolean>;
+  positional: string[];
+};
+
+async function main(argv: string[]): Promise<number> {
+  const parsed = parseArgs(argv);
+  const root = process.cwd();
+
+  switch (parsed.command) {
+    case "init": {
+      await initProject(root);
+      console.log("agent-collab initialized.");
+      console.log("Created AGENTS.md and .agent-collab protocol files.");
+      return 0;
+    }
+    case "start": {
+      const agent = requireFlag(parsed, "agent");
+      const title = requireFlag(parsed, "title");
+      const files = splitList(stringFlag(parsed, "files"));
+      const areas = splitList(stringFlag(parsed, "areas"));
+      const result = await startIntent(root, { agent, title, files, areas });
+      console.log(`Created intent: ${relative(result.path)}`);
+      if (result.intent.conflictCheck.result === "potential-conflict") {
+        console.log(`Potential conflict: ${result.intent.conflictCheck.notes}`);
+        console.log("Stop and ask the user before editing overlapping code.");
+      }
+      console.log("Write the detailed plan in plan.md before editing code.");
+      return 0;
+    }
+    case "status": {
+      const status = await getStatus(root);
+      if (status.problems.length > 0) {
+        console.log("Problems:");
+        for (const problem of status.problems) console.log(`- ${problem}`);
+      }
+      if (status.intents.length === 0) {
+        console.log("No active intents.");
+      } else {
+        console.log("Active intents:");
+        for (const intent of status.intents) {
+          const flags = [
+            intent.stale ? "stale" : "",
+            intent.expired ? "expired" : ""
+          ].filter(Boolean);
+          console.log(`- ${intent.title} (${intent.agent}) ${flags.length ? `[${flags.join(", ")}]` : ""}`);
+          console.log(`  Path: ${relative(intent.path)}`);
+          console.log(`  Files: ${intent.filesPlanned.join(", ") || "none"}`);
+          console.log(`  Areas: ${intent.areasAffected.join(", ") || "none"}`);
+        }
+      }
+      if (status.overlaps.length > 0) {
+        console.log("\nPotential conflicts:");
+        for (const overlap of status.overlaps) {
+          console.log(`- ${overlap.first} overlaps ${overlap.second}`);
+          if (overlap.files.length > 0) console.log(`  Files: ${overlap.files.join(", ")}`);
+          if (overlap.areas.length > 0) console.log(`  Areas: ${overlap.areas.join(", ")}`);
+        }
+      }
+      return status.problems.length > 0 ? 1 : 0;
+    }
+    case "doctor": {
+      const report = await doctorProject(root);
+      if (report.problems.length === 0 && report.warnings.length === 0) {
+        console.log("agent-collab doctor: ok");
+        return 0;
+      }
+      if (report.problems.length > 0) {
+        console.log("Problems:");
+        for (const problem of report.problems) console.log(`- ${problem}`);
+      }
+      if (report.warnings.length > 0) {
+        console.log("Warnings:");
+        for (const warning of report.warnings) console.log(`- ${warning}`);
+      }
+      return report.ok ? 0 : 1;
+    }
+    case "done": {
+      const target = parsed.positional[0];
+      if (!target) throw new Error("Missing intent path. Usage: agent-collab done .agent-collab/active/<intent-id>");
+      const result = await doneIntent(root, target);
+      console.log(`Archived intent: ${relative(result.path)}`);
+      for (const warning of result.warnings) console.log(`Warning: ${warning}`);
+      return 0;
+    }
+    case "--help":
+    case "-h":
+    case undefined:
+      printHelp();
+      return 0;
+    default:
+      console.error(`Unknown command: ${parsed.command}`);
+      printHelp();
+      return 1;
+  }
+}
+
+function parseArgs(argv: string[]): ParsedArgs {
+  const [command, ...rest] = argv;
+  const flags: Record<string, string | boolean> = {};
+  const positional: string[] = [];
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const item = rest[index]!;
+    if (item.startsWith("--")) {
+      const key = item.slice(2);
+      const next = rest[index + 1];
+      if (next && !next.startsWith("--")) {
+        flags[key] = next;
+        index += 1;
+      } else {
+        flags[key] = true;
+      }
+    } else {
+      positional.push(item);
+    }
+  }
+
+  return { command, flags, positional };
+}
+
+function requireFlag(parsed: ParsedArgs, name: string): string {
+  const value = stringFlag(parsed, name);
+  if (!value) throw new Error(`Missing --${name}`);
+  return value;
+}
+
+function stringFlag(parsed: ParsedArgs, name: string): string {
+  const value = parsed.flags[name];
+  return typeof value === "string" ? value : "";
+}
+
+function splitList(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function relative(target: string): string {
+  return target.startsWith(process.cwd()) ? target.slice(process.cwd().length + 1) : target;
+}
+
+function printHelp(): void {
+  console.log(`agent-collab
+
+A tiny AGENTS.md companion that makes coding agents declare intent before editing shared code.
+
+Usage:
+  agent-collab init
+  agent-collab start --agent codex --title "Login validation" --files src/a.ts,src/b.ts --areas auth,login
+  agent-collab status
+  agent-collab doctor
+  agent-collab done .agent-collab/active/<intent-id>
+`);
+}
+
+main(process.argv.slice(2))
+  .then((code) => {
+    process.exitCode = code;
+  })
+  .catch((error: unknown) => {
+    console.error((error as Error).message);
+    process.exitCode = 1;
+  });

@@ -1,0 +1,17 @@
+{
+  "name": "agent-collab",
+  "version": "0.1.0",
+  "description": "A tiny AGENTS.md companion that makes coding agents declare intent before editing shared code.",
+  "type": "module",
+  "bin": {
+    "agent-collab": "./src/cli.ts"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "check": "node --check src/cli.ts"
+  },
+  "engines": {
+    "node": ">=22.6"
+  },
+  "license": "MIT"
+}

@@ -43,6 +43,10 @@ async function main(argv: string[]): Promise<number> {
     }
     case "status": {
       const status = await getStatus(root);
+      if (hasFlag(parsed, "json")) {
+        printJson(status);
+        return status.problems.length > 0 ? 1 : 0;
+      }
       if (status.problems.length > 0) {
         console.log("Problems:");
         for (const problem of status.problems) console.log(`- ${problem}`);
@@ -74,6 +78,10 @@ async function main(argv: string[]): Promise<number> {
     }
     case "doctor": {
       const report = await doctorProject(root);
+      if (hasFlag(parsed, "json")) {
+        printJson(report);
+        return report.ok ? 0 : 1;
+      }
       if (report.problems.length === 0 && report.warnings.length === 0) {
         console.log("agent-collab doctor: ok");
         return 0;
@@ -174,6 +182,10 @@ function stringFlag(parsed: ParsedArgs, name: string): string {
   return typeof value === "string" ? value : "";
 }
 
+function hasFlag(parsed: ParsedArgs, name: string): boolean {
+  return parsed.flags[name] === true;
+}
+
 function splitList(value: string): string[] {
   return value
     .split(",")
@@ -185,6 +197,10 @@ function relative(target: string): string {
   return target.startsWith(process.cwd()) ? target.slice(process.cwd().length + 1) : target;
 }
 
+function printJson(value: unknown): void {
+  console.log(JSON.stringify(value, null, 2));
+}
+
 function printHelp(): void {
   console.log(`agent-collab
 
@@ -194,7 +210,9 @@ Usage:
   agent-collab init
   agent-collab start --agent codex --title "Login validation" --files src/a.ts,src/b.ts --areas auth,login
   agent-collab status
+  agent-collab status --json
   agent-collab doctor
+  agent-collab doctor --json
   agent-collab install-hooks
   agent-collab check-staged
   agent-collab done .agent-collab/active/<intent-id>

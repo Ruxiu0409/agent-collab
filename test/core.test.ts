@@ -28,6 +28,28 @@ async function tempGitRepo(): Promise<string> {
   return root;
 }
 
+async function runCli(root: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+  const cliPath = path.resolve("src", "cli.ts");
+  return execFileAsync(process.execPath, [cliPath, ...args], { cwd: root });
+}
+
+async function runCliExpectFailure(
+  root: string,
+  args: string[]
+): Promise<{ stdout: string; stderr: string; code: number | string | null | undefined }> {
+  try {
+    await runCli(root, args);
+  } catch (error) {
+    const failed = error as Error & {
+      stdout: string;
+      stderr: string;
+      code: number | string | null | undefined;
+    };
+    return { stdout: failed.stdout, stderr: failed.stderr, code: failed.code };
+  }
+  throw new Error(`Expected command to fail: ${args.join(" ")}`);
+}
+
 test("initProject creates AGENTS.md, protocol, active, and archive", async () => {
   const root = await tempRepo();
 
@@ -218,4 +240,80 @@ test("checkStagedIntentCoverage reports staged files claimed by multiple intents
 
   assert.equal(report.ok, false);
   assert.deepEqual(report.overlappingFiles, ["src.ts"]);
+});
+
+test("status --json prints machine-readable status with stable top-level fields", async () => {
+  const root = await tempRepo();
+  await initProject(root);
+  await startIntent(root, {
+    agent: "codex",
+    title: "JSON output",
+    files: ["src/cli.ts"],
+    areas: ["cli"],
+    now: new Date("2026-05-26T14:30:00Z")
+  });
+
+  const { stdout } = await runCli(root, ["status", "--json"]);
+  const parsed = JSON.parse(stdout);
+
+  assert.deepEqual(Object.keys(parsed).sort(), ["intents", "overlaps", "problems"]);
+  assert.equal(parsed.intents[0].title, "JSON output");
+  assert.equal(typeof parsed.intents[0].expired, "boolean");
+  assert.equal(typeof parsed.intents[0].stale, "boolean");
+  assert.deepEqual(parsed.overlaps, []);
+  assert.deepEqual(parsed.problems, []);
+});
+
+test("doctor --json prints machine-readable report with stable top-level fields", async () => {
+  const root = await tempRepo();
+  await initProject(root);
+
+  const { stdout } = await runCli(root, ["doctor", "--json"]);
+  const parsed = JSON.parse(stdout);
+
+  assert.deepEqual(Object.keys(parsed).sort(), ["ok", "problems", "warnings"]);
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(parsed.problems, []);
+  assert.ok(parsed.warnings.includes("Git repository was not detected"));
+});
+
+test("status keeps human-readable output by default", async () => {
+  const root = await tempRepo();
+  await initProject(root);
+
+  const { stdout } = await runCli(root, ["status"]);
+
+  assert.match(stdout, /No active intents\./);
+  assert.throws(() => JSON.parse(stdout));
+});
+
+test("status --json exits non-zero and still prints JSON when active intent data is invalid", async () => {
+  const root = await tempRepo();
+  await initProject(root);
+  const intentDir = path.join(root, ".agent-collab", "active", "broken-intent");
+  await import("node:fs/promises").then(async (fs) => {
+    await fs.mkdir(intentDir, { recursive: true });
+  });
+  await writeFile(path.join(intentDir, "intent.json"), "{broken", "utf8");
+
+  const result = await runCliExpectFailure(root, ["status", "--json"]);
+  const parsed = JSON.parse(result.stdout);
+
+  assert.equal(result.code, 1);
+  assert.deepEqual(parsed.intents, []);
+  assert.deepEqual(parsed.overlaps, []);
+  assert.ok(parsed.problems.some((problem: string) => problem.includes("malformed intent.json")));
+});
+
+test("doctor --json exits non-zero and still prints JSON when setup is invalid", async () => {
+  const root = await tempRepo();
+
+  const result = await runCliExpectFailure(root, ["doctor", "--json"]);
+  const parsed = JSON.parse(result.stdout);
+
+  assert.equal(result.code, 1);
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.problems.includes("AGENTS.md is missing"));
+  assert.ok(parsed.problems.includes(".agent-collab/protocol.md is missing"));
+  assert.ok(Array.isArray(parsed.warnings));
 });

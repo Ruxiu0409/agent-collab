@@ -85,6 +85,35 @@ agent-collab status
 agent-collab doctor
 ```
 
+Use JSON output for automation:
+
+```bash
+agent-collab status --json
+agent-collab doctor --json
+```
+
+`status --json` prints:
+
+```json
+{
+  "intents": [],
+  "overlaps": [],
+  "problems": []
+}
+```
+
+Each intent includes the same `intent.json` metadata plus `id`, `path`, `stale`, `expired`, and `ageMs`. `overlaps` lists active intent pairs with overlapping `files` or `areas`.
+
+`doctor --json` prints:
+
+```json
+{
+  "ok": true,
+  "problems": [],
+  "warnings": []
+}
+```
+
 Optionally install a pre-commit hook:
 
 ```bash
@@ -153,7 +182,9 @@ agent-collab done .agent-collab/active/<intent-id>
 | `agent-collab init` | Install `AGENTS.md` guidance and `.agent-collab/` protocol files. |
 | `agent-collab start` | Create an active intent directory with `intent.json` and `plan.md`. |
 | `agent-collab status` | List active intents, stale work, and potential overlaps. |
+| `agent-collab status --json` | Print the status report as stable JSON for agents, CI, and integrations. |
 | `agent-collab doctor` | Validate setup, JSON intent files, git state, and stale intents. |
+| `agent-collab doctor --json` | Print the doctor report as stable JSON for agents, CI, and integrations. |
 | `agent-collab install-hooks` | Install an optional pre-commit hook for staged-file intent coverage checks. |
 | `agent-collab check-staged` | Check staged files against active intents; used by the pre-commit hook. |
 | `agent-collab done` | Move completed work from `active/` to `archive/`. |

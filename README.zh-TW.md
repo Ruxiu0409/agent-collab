@@ -85,6 +85,35 @@ agent-collab status
 agent-collab doctor
 ```
 
+給自動化流程使用 JSON 輸出：
+
+```bash
+agent-collab status --json
+agent-collab doctor --json
+```
+
+`status --json` 會輸出：
+
+```json
+{
+  "intents": [],
+  "overlaps": [],
+  "problems": []
+}
+```
+
+每個 intent 都包含相同的 `intent.json` metadata，另外加上 `id`、`path`、`stale`、`expired` 和 `ageMs`。`overlaps` 會列出 active intents 之間重疊的 `files` 或 `areas`。
+
+`doctor --json` 會輸出：
+
+```json
+{
+  "ok": true,
+  "problems": [],
+  "warnings": []
+}
+```
+
 選擇性安裝 pre-commit hook：
 
 ```bash
@@ -153,7 +182,9 @@ agent-collab done .agent-collab/active/<intent-id>
 | `agent-collab init` | 安裝 `AGENTS.md` 指引與 `.agent-collab/` protocol files。 |
 | `agent-collab start` | 建立包含 `intent.json` 和 `plan.md` 的 active intent directory。 |
 | `agent-collab status` | 列出 active intents、stale work 和 potential overlaps。 |
+| `agent-collab status --json` | 以穩定 JSON 輸出 status report，供 agents、CI 和 integrations 使用。 |
 | `agent-collab doctor` | 檢查 setup、JSON intent files、git state 和 stale intents。 |
+| `agent-collab doctor --json` | 以穩定 JSON 輸出 doctor report，供 agents、CI 和 integrations 使用。 |
 | `agent-collab install-hooks` | 安裝選擇性的 pre-commit hook，檢查 staged files 是否有 intent 覆蓋。 |
 | `agent-collab check-staged` | 將 staged files 與 active intents 比對；供 pre-commit hook 使用。 |
 | `agent-collab done` | 將完成的工作從 `active/` 移到 `archive/`。 |

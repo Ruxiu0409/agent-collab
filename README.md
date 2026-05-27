@@ -68,6 +68,18 @@ Each intent has `updated` and `expires` timestamps. `status` and `doctor` surfac
 npx agent-collab init
 ```
 
+## Installation tiers
+
+`agent-collab` starts with a lite setup and makes stronger integrations explicit:
+
+| Tier | Command | Writes or configures |
+| --- | --- | --- |
+| Lite | `agent-collab init` | `AGENTS.md` guidance plus `.agent-collab/protocol.md`, `active/`, and `archive/`. |
+| Hooks | `agent-collab init --hooks` | Everything in Lite, plus a managed Git `pre-commit` hook that runs `agent-collab check-staged`. |
+| MCP setup | `agent-collab init --mcp` | Everything in Lite, plus `.agent-collab/mcp.md` with MCP tool-mapping guidance for integrations. |
+
+Modes are additive and opt-in. The default `init` does not install hooks, daemons, background services, or MCP servers.
+
 Create an intent before editing:
 
 ```bash
@@ -180,6 +192,8 @@ agent-collab done .agent-collab/active/<intent-id>
 | Command | Purpose |
 | --- | --- |
 | `agent-collab init` | Install `AGENTS.md` guidance and `.agent-collab/` protocol files. |
+| `agent-collab init --hooks` | Install the lite setup and opt-in pre-commit hook. |
+| `agent-collab init --mcp` | Install the lite setup and write optional MCP setup guidance. |
 | `agent-collab start` | Create an active intent directory with `intent.json` and `plan.md`. |
 | `agent-collab status` | List active intents, stale work, and potential overlaps. |
 | `agent-collab status --json` | Print the status report as stable JSON for agents, CI, and integrations. |

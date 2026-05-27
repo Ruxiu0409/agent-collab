@@ -63,6 +63,61 @@ test("initProject creates AGENTS.md, protocol, active, and archive", async () =>
   await stat(path.join(root, ".agent-collab", "archive"));
 });
 
+test("default CLI init keeps the lite setup and does not install hooks", async () => {
+  const root = await tempGitRepo();
+
+  const { stdout } = await runCli(root, ["init"]);
+
+  assert.match(stdout, /lite document-first setup/i);
+  await stat(path.join(root, "AGENTS.md"));
+  await stat(path.join(root, ".agent-collab", "protocol.md"));
+  await assert.rejects(() => stat(path.join(root, ".git", "hooks", "pre-commit")));
+});
+
+test("init --hooks adds the optional pre-commit hook after lite setup", async () => {
+  const root = await tempGitRepo();
+
+  const { stdout } = await runCli(root, ["init", "--hooks"]);
+
+  assert.match(stdout, /Installed optional pre-commit hook/i);
+  await stat(path.join(root, ".agent-collab", "protocol.md"));
+  const hook = await readFile(path.join(root, ".git", "hooks", "pre-commit"), "utf8");
+  assert.match(hook, /agent-collab check-staged/);
+});
+
+test("init --mcp writes optional MCP setup guidance without installing hooks", async () => {
+  const root = await tempGitRepo();
+
+  const { stdout } = await runCli(root, ["init", "--mcp"]);
+
+  assert.match(stdout, /Wrote optional MCP setup guide/i);
+  const guide = await readFile(path.join(root, ".agent-collab", "mcp.md"), "utf8");
+  assert.match(guide, /MCP setup/i);
+  assert.match(guide, /agent-collab status --json/);
+  await assert.rejects(() => stat(path.join(root, ".git", "hooks", "pre-commit")));
+});
+
+test("init optional modes are additive when hooks and mcp are both requested", async () => {
+  const root = await tempGitRepo();
+
+  const { stdout } = await runCli(root, ["init", "--hooks", "--mcp"]);
+
+  assert.match(stdout, /Installed optional pre-commit hook/i);
+  assert.match(stdout, /Wrote optional MCP setup guide/i);
+  await stat(path.join(root, ".git", "hooks", "pre-commit"));
+  await stat(path.join(root, ".agent-collab", "mcp.md"));
+});
+
+test("help explains init tiers and what each mode writes", async () => {
+  const root = await tempRepo();
+
+  const { stdout } = await runCli(root, ["--help"]);
+
+  assert.match(stdout, /agent-collab init\s+lite/i);
+  assert.match(stdout, /agent-collab init --hooks\s+lite \+ pre-commit hook/i);
+  assert.match(stdout, /agent-collab init --mcp\s+lite \+ MCP setup guide/i);
+});
+
 test("startIntent writes intent.json metadata and plan.md", async () => {
   const root = await tempRepo();
   await initProject(root);

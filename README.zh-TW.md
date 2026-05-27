@@ -68,6 +68,18 @@ Agents 必須先閱讀 protocol、檢查 active work、執行 `git status --shor
 npx agent-collab init
 ```
 
+## 安裝層級
+
+`agent-collab` 預設從 lite setup 開始，更強的整合都必須明確 opt in：
+
+| 層級 | 指令 | 會寫入或設定 |
+| --- | --- | --- |
+| Lite | `agent-collab init` | `AGENTS.md` 指引，加上 `.agent-collab/protocol.md`、`active/` 和 `archive/`。 |
+| Hooks | `agent-collab init --hooks` | Lite 的所有內容，再加上 managed Git `pre-commit` hook，執行 `agent-collab check-staged`。 |
+| MCP setup | `agent-collab init --mcp` | Lite 的所有內容，再加上 `.agent-collab/mcp.md`，提供 MCP integrations 的 tool-mapping guidance。 |
+
+這些模式都是 additive 且 opt-in。預設 `init` 不會安裝 hooks、daemons、background services 或 MCP servers。
+
 修改程式碼前先建立 intent：
 
 ```bash
@@ -180,6 +192,8 @@ agent-collab done .agent-collab/active/<intent-id>
 | 指令 | 用途 |
 | --- | --- |
 | `agent-collab init` | 安裝 `AGENTS.md` 指引與 `.agent-collab/` protocol files。 |
+| `agent-collab init --hooks` | 安裝 lite setup 和 opt-in pre-commit hook。 |
+| `agent-collab init --mcp` | 安裝 lite setup，並寫入選擇性的 MCP setup guidance。 |
 | `agent-collab start` | 建立包含 `intent.json` 和 `plan.md` 的 active intent directory。 |
 | `agent-collab status` | 列出 active intents、stale work 和 potential overlaps。 |
 | `agent-collab status --json` | 以穩定 JSON 輸出 status report，供 agents、CI 和 integrations 使用。 |

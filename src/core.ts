@@ -22,6 +22,15 @@ export type StartIntentOptions = {
   now?: Date;
 };
 
+export type InitProjectOptions = {
+  mcp?: boolean;
+};
+
+export type InitProjectResult = {
+  root: string;
+  mcpGuidePath?: string;
+};
+
 export type IntentJson = {
   schemaVersion: 1;
   status: "active" | "completed" | "archived";
@@ -82,12 +91,20 @@ export type StagedIntentCoverageReport = {
   problems: string[];
 };
 
-export async function initProject(root: string): Promise<{ root: string }> {
+export async function initProject(
+  root: string,
+  options: InitProjectOptions = {}
+): Promise<InitProjectResult> {
   await mkdir(collabPath(root), { recursive: true });
   await mkdir(activePath(root), { recursive: true });
   await mkdir(archivePath(root), { recursive: true });
   await writeFile(path.join(collabPath(root), "protocol.md"), formatProtocol(), "utf8");
   await upsertAgentsFile(root);
+  if (options.mcp) {
+    const mcpGuidePath = path.join(collabPath(root), "mcp.md");
+    await writeFile(mcpGuidePath, formatMcpSetupGuide(), "utf8");
+    return { root, mcpGuidePath };
+  }
   return { root };
 }
 
@@ -340,6 +357,31 @@ else
   echo "agent-collab: command not found; skipping intent coverage check."
 fi
 # agent-collab:end`;
+}
+
+function formatMcpSetupGuide(): string {
+  return `# agent-collab MCP setup
+
+This repository uses the lite agent-collab protocol by default. MCP integration is optional and should be wired explicitly by MCP-aware tools.
+
+Current machine-readable surfaces:
+
+- agent-collab status --json
+- agent-collab doctor --json
+- agent-collab start --agent <name> --title <title> --files <files> --areas <areas>
+- agent-collab done .agent-collab/active/<intent-id>
+
+Suggested MCP tool mapping:
+
+| MCP tool | CLI behavior |
+| --- | --- |
+| agent_collab_status | Run agent-collab status --json. |
+| agent_collab_doctor | Run agent-collab doctor --json. |
+| agent_collab_start | Run agent-collab start with explicit agent, title, files, and areas. |
+| agent_collab_done | Run agent-collab done with an active intent path. |
+
+This file is setup guidance only. agent-collab does not install a daemon, background service, or MCP server during init.
+`;
 }
 
 async function upsertAgentsFile(root: string): Promise<void> {

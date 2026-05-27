@@ -22,9 +22,16 @@ async function main(argv: string[]): Promise<number> {
 
   switch (parsed.command) {
     case "init": {
-      await initProject(root);
-      console.log("agent-collab initialized.");
+      const result = await initProject(root, { mcp: hasFlag(parsed, "mcp") });
+      console.log("agent-collab initialized (lite document-first setup).");
       console.log("Created AGENTS.md and .agent-collab protocol files.");
+      if (hasFlag(parsed, "hooks")) {
+        const hooks = await installGitHooks(root);
+        console.log(`Installed optional pre-commit hook: ${relative(hooks.path)}`);
+      }
+      if (result.mcpGuidePath) {
+        console.log(`Wrote optional MCP setup guide: ${relative(result.mcpGuidePath)}`);
+      }
       return 0;
     }
     case "start": {
@@ -207,7 +214,9 @@ function printHelp(): void {
 A tiny AGENTS.md companion that makes coding agents declare intent before editing shared code.
 
 Usage:
-  agent-collab init
+  agent-collab init          lite: writes AGENTS.md and .agent-collab protocol files
+  agent-collab init --hooks  lite + pre-commit hook for staged-file intent checks
+  agent-collab init --mcp    lite + MCP setup guide at .agent-collab/mcp.md
   agent-collab start --agent codex --title "Login validation" --files src/a.ts,src/b.ts --areas auth,login
   agent-collab status
   agent-collab status --json

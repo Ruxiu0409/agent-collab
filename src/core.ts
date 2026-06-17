@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import {
+  appendFile,
   chmod,
   mkdir,
   readFile,
@@ -91,6 +92,11 @@ export type StagedIntentCoverageReport = {
   problems: string[];
 };
 
+export type TouchIntentResult = {
+  path: string;
+  intent: IntentJson;
+};
+
 export async function initProject(
   root: string,
   options: InitProjectOptions = {}
@@ -99,7 +105,13 @@ export async function initProject(
   await mkdir(activePath(root), { recursive: true });
   await mkdir(archivePath(root), { recursive: true });
   await writeFile(path.join(collabPath(root), "protocol.md"), formatProtocol(), "utf8");
+  await writeFile(eventsPath(root), "", "utf8");
   await upsertAgentsFile(root);
+  await appendEvent(root, {
+    type: "project.initialized",
+    time: new Date().toISOString(),
+    mcp: options.mcp === true
+  });
   if (options.mcp) {
     const mcpGuidePath = path.join(collabPath(root), "mcp.md");
     await writeFile(mcpGuidePath, formatMcpSetupGuide(), "utf8");
@@ -146,6 +158,23 @@ export async function startIntent(
 
   await writeFile(path.join(intentDir, "intent.json"), `${JSON.stringify(intent, null, 2)}\n`, "utf8");
   await writeFile(path.join(intentDir, "plan.md"), formatPlan(options), "utf8");
+  if (potential.length > 0) {
+    await appendEvent(root, {
+      type: "conflict.detected",
+      time: now.toISOString(),
+      intentId: id,
+      files: options.files,
+      areas: options.areas,
+      overlaps: potential
+    });
+  }
+  await appendEvent(root, {
+    type: "intent.started",
+    time: now.toISOString(),
+    intentId: id,
+    agent: intent.agent,
+    title: intent.title
+  });
 
   return { id, path: intentDir, intent };
 }
@@ -235,7 +264,46 @@ export async function doneIntent(
   await mkdir(archivePath(root), { recursive: true });
   const destination = path.join(archivePath(root), path.basename(source));
   await rename(source, destination);
+  await appendEvent(root, {
+    type: "intent.archived",
+    time: new Date().toISOString(),
+    intentId: path.basename(destination),
+    agent: archivedIntent.agent,
+    title: archivedIntent.title
+  });
   return { path: destination, warnings };
+}
+
+export async function touchIntent(
+  root: string,
+  intentPath: string,
+  now = new Date()
+): Promise<TouchIntentResult> {
+  const target = path.isAbsolute(intentPath) ? intentPath : path.join(root, intentPath);
+  const { intent } = await readIntentDirectory(target);
+  const warnings = validateIntent(intent);
+  if (warnings.length > 0) {
+    throw new Error(`Cannot refresh invalid intent: ${warnings.join("; ")}`);
+  }
+  if (intent.status !== "active") {
+    throw new Error(`Cannot refresh a ${intent.status} intent`);
+  }
+
+  const refreshed: IntentJson = {
+    ...intent,
+    updated: now.toISOString(),
+    expires: new Date(now.getTime() + STALE_AFTER_MS).toISOString()
+  };
+
+  await writeFile(path.join(target, "intent.json"), `${JSON.stringify(refreshed, null, 2)}\n`, "utf8");
+  await appendEvent(root, {
+    type: "intent.touched",
+    time: now.toISOString(),
+    intentId: path.basename(target),
+    agent: refreshed.agent,
+    title: refreshed.title
+  });
+  return { path: target, intent: refreshed };
 }
 
 export async function installGitHooks(root: string): Promise<GitHooksInstallReport> {
@@ -313,6 +381,10 @@ function activePath(root: string): string {
 
 function archivePath(root: string): string {
   return path.join(collabPath(root), "archive");
+}
+
+function eventsPath(root: string): string {
+  return path.join(collabPath(root), "events.jsonl");
 }
 
 function formatProtocol(): string {
@@ -490,6 +562,14 @@ async function readActiveIntents(
 async function readIntentDirectory(intentDir: string): Promise<{ intent: IntentJson }> {
   const raw = await readFile(path.join(intentDir, "intent.json"), "utf8");
   return { intent: JSON.parse(raw) as IntentJson };
+}
+
+async function appendEvent(root: string, event: Record<string, unknown>): Promise<void> {
+  try {
+    await appendFile(eventsPath(root), `${JSON.stringify(event)}\n`, "utf8");
+  } catch {
+    // Audit logging is advisory and must not block core coordination flows.
+  }
 }
 
 async function readStagedFiles(root: string): Promise<string[]> {

@@ -7,7 +7,8 @@ import {
   getStatus,
   initProject,
   installGitHooks,
-  startIntent
+  startIntent,
+  touchIntent
 } from "./core.ts";
 
 type ParsedArgs = {
@@ -109,6 +110,16 @@ async function main(argv: string[]): Promise<number> {
       const result = await doneIntent(root, target);
       console.log(`Archived intent: ${relative(result.path)}`);
       for (const warning of result.warnings) console.log(`Warning: ${warning}`);
+      return 0;
+    }
+    case "touch": {
+      const target = parsed.positional[0];
+      if (!target) {
+        throw new Error("Missing intent path. Usage: agent-collab touch .agent-collab/active/<intent-id>");
+      }
+      const result = await touchIntent(root, target);
+      console.log(`Refreshed intent: ${relative(result.path)}`);
+      console.log(`Updated lease until ${result.intent.expires}`);
       return 0;
     }
     case "install-hooks": {
@@ -222,6 +233,7 @@ Usage:
   agent-collab status --json
   agent-collab doctor
   agent-collab doctor --json
+  agent-collab touch .agent-collab/active/<intent-id>
   agent-collab install-hooks
   agent-collab check-staged
   agent-collab done .agent-collab/active/<intent-id>

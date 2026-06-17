@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -13,6 +13,7 @@ import {
   getStatus,
   initProject,
   installGitHooks,
+  touchIntent,
   startIntent
 } from "../src/core.ts";
 
@@ -50,6 +51,15 @@ async function runCliExpectFailure(
   throw new Error(`Expected command to fail: ${args.join(" ")}`);
 }
 
+async function readEvents(root: string): Promise<Array<Record<string, unknown>>> {
+  const raw = await readFile(path.join(root, ".agent-collab", "events.jsonl"), "utf8");
+  return raw
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+}
+
 test("initProject creates AGENTS.md, protocol, active, and archive", async () => {
   const root = await tempRepo();
 
@@ -59,6 +69,7 @@ test("initProject creates AGENTS.md, protocol, active, and archive", async () =>
   assert.match(agents, /declare intent before editing shared code/i);
   assert.match(agents, /agent-collab:start/);
   await stat(path.join(root, ".agent-collab", "protocol.md"));
+  await stat(path.join(root, ".agent-collab", "events.jsonl"));
   await stat(path.join(root, ".agent-collab", "active"));
   await stat(path.join(root, ".agent-collab", "archive"));
 });
@@ -196,6 +207,35 @@ test("startIntent records potential conflicts with existing active work", async 
   assert.match(result.intent.conflictCheck.notes, /src\/auth\.ts/);
 });
 
+test("startIntent appends started and conflict events", async () => {
+  const root = await tempRepo();
+  await initProject(root);
+  await startIntent(root, {
+    agent: "agent-a",
+    title: "Auth UI",
+    files: ["src/auth.ts"],
+    areas: ["auth"],
+    now: new Date("2026-05-26T14:00:00Z")
+  });
+
+  const result = await startIntent(root, {
+    agent: "agent-b",
+    title: "Auth API",
+    files: ["src/auth.ts"],
+    areas: ["api"],
+    now: new Date("2026-05-26T14:30:00Z")
+  });
+
+  const events = await readEvents(root);
+
+  assert.equal(events.length, 4);
+  assert.equal(events[1]?.type, "intent.started");
+  assert.equal(events[2]?.type, "conflict.detected");
+  assert.equal(events[2]?.intentId, result.id);
+  assert.equal(events[3]?.type, "intent.started");
+  assert.equal(events[3]?.intentId, result.id);
+});
+
 test("doctorProject reports malformed intent.json", async () => {
   const root = await tempRepo();
   await initProject(root);
@@ -226,6 +266,51 @@ test("doneIntent moves completed intent directory to archive", async () => {
 
   await stat(path.join(archived.path, "intent.json"));
   assert.match(archived.path, /\.agent-collab\/archive\/2026-05-26T143000Z-codex-archive-me$/);
+  const events = await readEvents(root);
+  assert.equal(events.at(-1)?.type, "intent.archived");
+});
+
+test("touchIntent refreshes updated and expires for an active intent", async () => {
+  const root = await tempRepo();
+  await initProject(root);
+  const startedAt = new Date("2026-05-26T14:30:00Z");
+  const touchedAt = new Date("2026-05-26T16:00:00Z");
+  const result = await startIntent(root, {
+    agent: "codex",
+    title: "Keep fresh",
+    files: ["src/a.ts"],
+    areas: ["coordination"],
+    now: startedAt
+  });
+
+  const touched = await touchIntent(root, result.path, touchedAt);
+  const intent = JSON.parse(await readFile(path.join(touched.path, "intent.json"), "utf8"));
+
+  assert.equal(intent.started, "2026-05-26T14:30:00.000Z");
+  assert.equal(intent.updated, "2026-05-26T16:00:00.000Z");
+  assert.equal(intent.expires, "2026-05-26T20:00:00.000Z");
+  const events = await readEvents(root);
+  assert.equal(events.at(-1)?.type, "intent.touched");
+});
+
+test("event log write failures do not block startIntent", async () => {
+  const root = await tempRepo();
+  await initProject(root);
+  const eventsPath = path.join(root, ".agent-collab", "events.jsonl");
+  const blockedPath = path.join(root, ".agent-collab", "events-blocked");
+  await rename(eventsPath, blockedPath);
+  await mkdir(eventsPath);
+
+  const result = await startIntent(root, {
+    agent: "codex",
+    title: "Keep going",
+    files: ["src/safe.ts"],
+    areas: ["coordination"],
+    now: new Date("2026-05-26T14:30:00Z")
+  });
+
+  const intent = JSON.parse(await readFile(path.join(result.path, "intent.json"), "utf8"));
+  assert.equal(intent.title, "Keep going");
 });
 
 test("installGitHooks writes a managed pre-commit hook", async () => {
@@ -237,6 +322,28 @@ test("installGitHooks writes a managed pre-commit hook", async () => {
   assert.equal(result.installed, true);
   assert.match(hook, /agent-collab:start/);
   assert.match(hook, /agent-collab check-staged/);
+});
+
+test("touch CLI refreshes an intent using a relative path", async () => {
+  const root = await tempRepo();
+  await initProject(root);
+  const result = await startIntent(root, {
+    agent: "codex",
+    title: "CLI touch",
+    files: ["src/cli.ts"],
+    areas: ["cli"],
+    now: new Date("2026-05-26T14:30:00Z")
+  });
+
+  const { stdout } = await runCli(root, ["touch", path.relative(root, result.path)]);
+  const intent = JSON.parse(await readFile(path.join(result.path, "intent.json"), "utf8"));
+
+  assert.match(stdout, /Refreshed intent:/);
+  assert.ok(Date.parse(intent.updated) > Date.parse("2026-05-26T14:30:00.000Z"));
+  assert.equal(
+    Date.parse(intent.expires) - Date.parse(intent.updated),
+    4 * 60 * 60 * 1000
+  );
 });
 
 test("checkStagedIntentCoverage reports staged files without active intents", async () => {

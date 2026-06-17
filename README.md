@@ -58,6 +58,12 @@ Every active intent is a small directory:
 
 Each intent has `updated` and `expires` timestamps. `status` and `doctor` surface stale or expired work so old coordination files do not quietly become noise.
 
+For longer work, `agent-collab touch .agent-collab/active/<intent-id>` refreshes the lease by updating `updated` and extending `expires`.
+
+### Append-only audit log
+
+`agent-collab` also keeps an advisory `.agent-collab/events.jsonl` log for important lifecycle events such as project init, intent start, conflict detection, touch, and archive. The log is append-only and file-based so it can support later automation or reporting without adding a daemon.
+
 ### AGENTS.md native
 
 `agent-collab init` writes a managed section into `AGENTS.md`, the cross-tool instruction surface many coding agents already read.
@@ -95,6 +101,7 @@ Check current work:
 ```bash
 agent-collab status
 agent-collab doctor
+agent-collab touch .agent-collab/active/<intent-id>
 ```
 
 Use JSON output for automation:
@@ -199,6 +206,7 @@ agent-collab done .agent-collab/active/<intent-id>
 | `agent-collab status --json` | Print the status report as stable JSON for agents, CI, and integrations. |
 | `agent-collab doctor` | Validate setup, JSON intent files, git state, and stale intents. |
 | `agent-collab doctor --json` | Print the doctor report as stable JSON for agents, CI, and integrations. |
+| `agent-collab touch` | Refresh an active intent lease by updating `updated` and `expires`. |
 | `agent-collab install-hooks` | Install an optional pre-commit hook for staged-file intent coverage checks. |
 | `agent-collab check-staged` | Check staged files against active intents; used by the pre-commit hook. |
 | `agent-collab done` | Move completed work from `active/` to `archive/`. |
@@ -207,6 +215,7 @@ agent-collab done .agent-collab/active/<intent-id>
 
 | Path | Description |
 | --- | --- |
+| `.agent-collab/events.jsonl` | Advisory append-only audit log for lifecycle events. |
 | `src/core.ts` | Core protocol logic for init, start, status, doctor, and done. |
 | `src/cli.ts` | Zero-dependency Node CLI entrypoint. |
 | `test/core.test.ts` | Node built-in test coverage for the MVP behavior. |

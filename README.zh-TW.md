@@ -58,6 +58,12 @@ Agents 必須先閱讀 protocol、檢查 active work、執行 `git status --shor
 
 每個 intent 都有 `updated` 和 `expires` timestamp。`status` 和 `doctor` 會提示 stale 或 expired 的工作，避免舊的 coordination files 慢慢變成沒人信任的噪音。
 
+如果工作時間較長，可以執行 `agent-collab touch .agent-collab/active/<intent-id>` 來續租，更新 `updated` 並延長 `expires`。
+
+### Append-only 稽核紀錄
+
+`agent-collab` 也會維護一個 advisory 的 `.agent-collab/events.jsonl`，記錄像是 project init、intent start、conflict detection、touch 和 archive 等重要 lifecycle events。這份紀錄採 append-only、純檔案形式，方便之後做 automation 或 reporting，而不需要額外 daemon。
+
 ### 原生支援 AGENTS.md
 
 `agent-collab init` 會在 `AGENTS.md` 加入 managed section。AGENTS.md 是許多 coding agents 已經會讀取的跨工具指令檔。
@@ -95,6 +101,7 @@ agent-collab start \
 ```bash
 agent-collab status
 agent-collab doctor
+agent-collab touch .agent-collab/active/<intent-id>
 ```
 
 給自動化流程使用 JSON 輸出：
@@ -199,6 +206,7 @@ agent-collab done .agent-collab/active/<intent-id>
 | `agent-collab status --json` | 以穩定 JSON 輸出 status report，供 agents、CI 和 integrations 使用。 |
 | `agent-collab doctor` | 檢查 setup、JSON intent files、git state 和 stale intents。 |
 | `agent-collab doctor --json` | 以穩定 JSON 輸出 doctor report，供 agents、CI 和 integrations 使用。 |
+| `agent-collab touch` | 續租 active intent，更新 `updated` 與 `expires`。 |
 | `agent-collab install-hooks` | 安裝選擇性的 pre-commit hook，檢查 staged files 是否有 intent 覆蓋。 |
 | `agent-collab check-staged` | 將 staged files 與 active intents 比對；供 pre-commit hook 使用。 |
 | `agent-collab done` | 將完成的工作從 `active/` 移到 `archive/`。 |
@@ -207,6 +215,7 @@ agent-collab done .agent-collab/active/<intent-id>
 
 | 路徑 | 說明 |
 | --- | --- |
+| `.agent-collab/events.jsonl` | lifecycle events 的 advisory append-only 稽核紀錄。 |
 | `src/core.ts` | `init`、`start`、`status`、`doctor`、`done` 的核心 protocol logic。 |
 | `src/cli.ts` | 零外部依賴的 Node CLI entrypoint。 |
 | `test/core.test.ts` | 使用 Node built-in test runner 的 MVP 行為測試。 |
